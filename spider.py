@@ -17,7 +17,7 @@ db = client[MONGO_DB]
 
 
 def get_page_index(offset, keyword):
-    data = {
+    payload = {
         'offset': offset,
         'format': 'json',
         'keyword': keyword,
@@ -26,11 +26,9 @@ def get_page_index(offset, keyword):
         'cur_tab': '3',
         'from': 'gallery',
     }
-    params = urlencode(data)
-    base = 'https://www.toutiao.com/search_content/'
-    url = base + '?' + params
+    url = 'https://www.toutiao.com/search_content/'
     try:
-        response = requests.get(url)
+        response = requests.get(url, params=payload)
         if response.status_code == 200:
             return response.text
         return None
