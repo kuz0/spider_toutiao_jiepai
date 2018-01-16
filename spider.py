@@ -1,18 +1,17 @@
+# -*- coding: utf-8 -*-
+
 import os
 import re
 import json
-import pymongo
 import requests
-from requests.exceptions import ConnectionError
-from urllib.parse import urlencode
-from pyquery import PyQuery
+from pyquery import PyQuery as pq
+from pymongo import MongoClient
 from hashlib import md5
-from json import JSONDecodeError
 from multiprocessing import Pool
 from config import *
 
 
-client = pymongo.MongoClient(MONGO_URL, connect=False)
+client = MongoClient(MONGO_URI, connect=False)
 db = client[MONGO_DB]
 
 
@@ -29,81 +28,81 @@ def get_page_index(offset, keyword):
     url = 'https://www.toutiao.com/search_content/'
     try:
         response = requests.get(url, params=payload)
-        if response.status_code == 200:
+        if response.status_code == requests.codes.ok:
             return response.text
         return None
-    except ConnectionError:
-        print('Error occurred')
-        return None
+    except Exception as e:
+        print(e)
 
 
-def parse_page_index(text):
+def parse_page_index(response):
     try:
-        data = json.loads(text)
+        data = json.loads(response)
         if data and 'data' in data.keys():
             for item in data.get('data'):
                 yield item.get('article_url')
-    except JSONDecodeError:
-        pass
+    except Exception as e:
+        print(e)
 
 
 def get_page_detail(url):
     try:
         response = requests.get(url)
-        if response.status_code == 200:
+        if response.status_code == requests.codes.ok:
             return response.text
         return None
-    except ConnectionError:
-        print('Error occurred')
-        return None
+    except Exception as e:
+        print(e)
 
 
 def parse_page_detail(html, url):
-    doc = PyQuery(html)
+    doc = pq(html)
     title = doc('title').text()
     images_pattern = re.compile('gallery: JSON.parse\("(.*?)"\)', re.S)
     result = re.search(images_pattern, html)
     if result:
-        result_ = result.group(1).replace(r'\"', r'"')
-        result__ = result_.replace(r'\\', r'')
-        data = json.loads(result__)
-        if data and 'sub_images' in data.keys():
-            sub_images = data.get('sub_images')
-            images = [item.get('url') for item in sub_images]
-            for image in images:
-                download_image(image)
-            return {
-                'title': title,
-                'url': url,
-                'images': images,
-            }
+        result = result.group(1).replace(r'\"', r'"')
+        result = result.replace(r'\\', r'')
+        try:
+            data = json.loads(result)
+            if data and 'sub_images' in data.keys():
+                sub_images = data.get('sub_images')
+                images = [item.get('url') for item in sub_images]
+                for image in images:
+                    download_image(image)
+                return {
+                    'title': title,
+                    'url': url,
+                    'images': images,
+                }
+        except Exception as e:
+            print(e)
 
 
 def save_to_mongodb(result):
-    if db[MONGO_TABLE].insert(result):
-        print('Successfully Saved to Mongo', result)
-        return True
-    else:
-        return False
+    try:
+        if db[MONGO_TABLE].insert_one(result):
+            print('Successfully Saved!', result['title'])
+    except Exception as e:
+        print(e)
 
 
 def download_image(url):
     print('Downloading', url)
     try:
         response = requests.get(url)
-        if response.status_code == 200:
+        if response.status_code == requests.codes.ok:
             save_image(response.content)
         return None
-    except ConnectionError:
-        return None
+    except Exception as e:
+        print(e)
 
 
 def save_image(content):
-    file_path = '{0}/{1}.{2}'.format(os.getcwd(),
-                                     md5(content).hexdigest(),
-                                     'jpg')
-    print(file_path)
+    file_path = '{0}/{1}.jpg'.format(os.getcwd(),
+                                     md5(content).hexdigest())
     if not os.path.exists(file_path):
+        print(file_path)
         with open(file_path, 'wb') as f:
             f.write(content)
             f.close()
