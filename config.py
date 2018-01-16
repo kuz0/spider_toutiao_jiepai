@@ -1,4 +1,6 @@
-MONGO_URL = 'localhost'
+# -*- coding: utf-8 -*-
+
+MONGO_URI = 'localhost'
 MONGO_DB = 'toutiao'
 MONGO_TABLE = 'jiepai'
 
